@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  labels:
+    k8s-app: webhook-auth
+  name: webhook-auth
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      k8s-app: webhook-auth
+  template:
+    metadata:
+      labels:
+        k8s-app: webhook-auth
+      annotations:
+        scheduler.alpha.kubernetes.io/critical-pod: ''
+    spec:
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        effect: NoSchedule
+      containers:
+      - image: webhook-auth:v1
+        name: webhook-auth
+        ports:
+        - containerPort: 3000
+          hostPort: 3000
+          protocol: TCP
+      hostNetwork: true
+      restartPolicy: Always

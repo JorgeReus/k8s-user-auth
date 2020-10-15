@@ -1,0 +1,6 @@
+users:
+    admin:
+    - reus@example.com
+
+    dev:
+    - jorge@example.com

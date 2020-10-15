@@ -1,0 +1,10 @@
+.terraform/
+terraform.tfstate*
+terraform.tfvars
+*example.yaml
+*.idea
+*.iml
+*.kubeconfig
+oidc/dex/certs/*.pem
+oidc/dex/certs/*.srl
+oidc/dex/certs/*.cnf

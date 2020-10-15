@@ -1,0 +1,74 @@
+issuer: https://${domain-name}/dex
+storage:
+  type: sqlite3
+  config:
+    file: ${dex-home-path}/dex.db
+
+web:
+  # http: 0.0.0.0:5556
+  https: 0.0.0.0:443
+  tlsCert: ${dex-home-path}/certs/cert.pem
+  tlsKey: ${dex-home-path}/certs/key.pem
+  # tlsCert: ${dex-home-path}/certs/fullchain.pem
+  # tlsKey: ${dex-home-path}/certs/privkey.pem
+
+frontend:
+  dir: ${dex-home-path}/web
+
+# Configuration for telemetry
+telemetry:
+  http: 0.0.0.0:5558
+  
+expiry:
+  signingKeys: "10m"
+  idTokens: "30m"
+
+logger:
+  level: "debug"
+  format: "json" 
+
+oauth2:
+  responseTypes: ["code", "token", "id_token"]
+  skipApprovalScreen: true
+
+
+connectors:
+  - type: mockCallback
+    id: mock
+    name: Example
+  - type: gitlab
+    id: gitlab
+    name: GitLab
+    config:
+      baseURL: https://gitlab.com
+      clientID: ${gitlab-client-id}
+      clientSecret: ${gitlab-secret}
+      redirectURI: https://${domain-name}/dex/callback
+      useLoginAsID: false
+      groups:
+  %{ for group in gitlab-groups ~}
+    - ${group} 
+  %{ endfor ~}
+
+enablePasswordDB: True
+
+staticClients:
+- id: example-cluster-client-id
+  name: Kubernetes Dev Cluster
+  secret: ZXhhbXBsZS1hcHAtc2VjcmV0 
+  redirectURIs:
+    - http://127.0.0.1:5555/callback/example-cluster
+
+- id: kube-login-client
+  name: Kube Login Client
+  secret: qgODwpzNk7NmyxrXINFAHf1R
+  redirectURIs:
+    - http://localhost:8000
+    - http://localhost:18000
+
+staticPasswords:
+- email: "admin@example.com"
+  # bcrypt hash of the string "password"
+  hash: "$2a$10$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W"
+  username: "admin"
+  userID: "08a8684b-db88-4b73-90a9-3cd1661f5466"  

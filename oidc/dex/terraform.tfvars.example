@@ -1,0 +1,6 @@
+zone_name        = "example.com"
+# echo "mysuperextraultralongclientid" | xxd -ps -c 200 | tr -d '\n'
+gitlab-client-id = "6d7973757065726578747261756c7472616c6f6e67636c69656e7469640a"
+# echo "mysuperextraultralongsecretstring" | xxd -ps -c 200 | tr -d '\n'
+gitlab-secret    = "6d7973757065726578747261756c7472616c6f6e67736563726574737472696e670a"
+gitlab-groups    = ["group_id_1", "group_id_2"]

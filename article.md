@@ -352,4 +352,42 @@ As we can see, the magic happens when we, as an user, login to the IDP to get an
 
 In this example we will spinning up our own [dex](https://github.com/dexidp/dex) instance that has access to Gitlab as an upstream provider.
 
+### Why dex?
+Because dex can have multiple upstream providers and showcases a more complex example for OIDC authentication
 
+### Process
+Once you have dex (you can use a different oidc provider), you need to update the api server flags to support it:
+- oidc-issuer-url:  This is the url of the dex issuer
+- oidc-username-claim: This is the claim that k8s will use to identify an user
+- oidc-client-id: This is the identifier of the client application, this identifies the application as a whole, in this case, the k8s cluster
+- oidc-ca-file: The certificate authority pem file of dex, typically CA.pem
+- oidc-groups-claim: The claims that k8s will use to define group membership, this is used in the rolebindings
+- oidc-groups-prefix: An optional prefix to not collide with predefined groups in k8s like `system:`
+- oidc-username-prefix: Server the same purpose as the previous one, but for users.  
+
+An example in k3d would be
+```
+k3d cluster create oidc \
+-v /tmp/certs:/etc/self-ssl/ \
+--k3s-server-arg "--kube-apiserver-arg=oidc-issuer-url=<your-dex-url>" \
+--k3s-server-arg "--kube-apiserver-arg=oidc-username-claim=email" \
+--k3s-server-arg "--kube-apiserver-arg=oidc-client-id=<your-dex-client-id>" \
+--k3s-server-arg "--kube-apiserver-arg=oidc-ca-file=/etc/self-ssl/ca.pem" \
+--k3s-server-arg "--kube-apiserver-arg=oidc-groups-claim=groups" \
+--k3s-server-arg "--kube-apiserver-arg=oidc-groups-prefix=oidc:" \
+--k3s-server-arg "--kube-apiserver-arg=oidc-username-prefix=oidc:"
+
+```
+
+### Implementation
+1. We will be using the [repo](https://github.com/JorgeReus/k8s-user-auth), so, clone it!
+2. Go to the oidc dir
+3. Follow the instructions of the repo a summary is:
+  - Get your own domain 
+  - Apply the terraform script of the route\_53 zone, this will create a zone with the name you used.
+  - Add the zone namesevers into your domain provider
+  - Generate the self signed certs (k8s needs ssl for the oidc provider)
+  - Apply the terraform scripts for dex
+  - Start your k3d cluster
+  - Install kubelogin
+  - Test it!

@@ -16,8 +16,12 @@ The kubernetes docs recommends using at least two methods:
 
 Enough blahbery, let's cut to the chase.
 
+## Resources
+We will be using the [repo](https://github.com/JorgeReus/k8s-user-auth), so, clone it!
+
+
 ## Certificate Signing Request
-This method allows a client to ask for and X.509 certificate to be issued by the CA and delivered to him
+This method allows a client to ask for and X.509 certificate to be issued by the CA and delivered to him, you can check the code in the **csr** dir in the repo 
 ### Manual process
 For a test environment spin up minikube instance with `minikube start`, this was tested with `minikube version: v1.13.0`
 1. Create your private key
@@ -184,8 +188,9 @@ contexts:
 current-context: {{ .User }}-{{ .ClusterName }}
 ```
 ## Webhook token
-For demo purposes we use `k3d versionk3d version v3.0.1` and `k3s version v1.18.6-k3s1 (default)`  in this example.
+For demo purposes we use `k3d versionk3d version v3.0.1` and `k3s version v1.18.6-k3s1 (default)`  in this example. You can check the code in the **webhook** dir
 This method allows authentication by verifying bearer tokens.  For this you need a service that handles a token that is provided by kubernetes once a user sends a request to the API server. We will specify the process bellow:
+
 
 1. Create a file with the following contents and save it as `webhook-config.yaml`
 ```
@@ -342,7 +347,7 @@ EOF
 So now kubernetes uses your github token to verify that you belong to an organization.
 
 ## OIDC (OpenId Connect)
-For demo purposes we use `k3d versionk3d version v3.0.1` and `k3s version v1.18.6-k3s1 (default)`  in this example.
+For demo purposes we use `k3d versionk3d version v3.0.1` and `k3s version v1.18.6-k3s1 (default)`  in this example. You can check the code in the **idc** dir.
 
 K8s allows an OIDC provider as an Identity provider this is an excellent sequence diagram from the official docs.
 
@@ -355,7 +360,186 @@ In this example we will spinning up our own [dex](https://github.com/dexidp/dex)
 ### Why dex?
 Because dex can have multiple upstream providers and showcases a more complex example for OIDC authentication
 
-### Process
+
+### Terraform code
+```
+# A keypair for ssh provisioning, this uses your default public key
+resource "aws_key_pair" "ssh-key" {
+  key_name_prefix = "dex"
+  public_key      = file("~/.ssh/id_rsa.pub")
+}
+
+locals {
+  dex-config = {
+    record-name      = "dex"
+    domain-name      = "dex.mydomain.com"
+    dex-home-path    = "/home/ubuntu/dex"
+    gitlab-client-id = var.gitlab-client-id
+    gitlab-secret    = var.gitlab-secret
+    gitlab-groups    = var.gitlab-groups
+  }
+}
+
+# An static ip
+resource "aws_eip_association" "eip_assoc" {
+  instance_id   = aws_instance.dex.id
+  allocation_id = data.aws_eip.selected.id
+}
+
+# An EC2 instance containing dex
+resource "aws_instance" "dex" {
+  ami                    = data.aws_ami.ubuntu.id
+  vpc_security_group_ids = [aws_security_group.allow_dex.id]
+  key_name               = aws_key_pair.ssh-key.key_name
+  instance_type          = "t3.micro"
+
+  provisioner "remote-exec" {
+    inline = ["mkdir -p /home/ubuntu/dex"]
+    connection {
+      type = "ssh"
+      user = "ubuntu"
+      host = self.public_ip
+    }
+  }
+
+  # Dex config
+  provisioner "file" {
+    content     = templatefile("./templates/dex-server-config.yml", local.dex-config)
+    destination = "${local.dex-config.dex-home-path}/server-config.yaml"
+    connection {
+      type = "ssh"
+      user = "ubuntu"
+      host = self.public_ip
+    }
+  }
+
+  # Ssl certificates for dex
+  provisioner "file" {
+    source      = "certs"
+    destination = "${local.dex-config.dex-home-path}/certs"
+    connection {
+      type = "ssh"
+      user = "ubuntu"
+      host = self.public_ip
+    }
+  }
+}
+
+
+# Privision the dex instance sincrououlsy
+resource "null_resource" "provisioner" {
+  depends_on = [aws_instance.dex]
+  provisioner "remote-exec" {
+    script = "${path.root}/init.sh"
+    connection {
+      type = "ssh"
+      user = "ubuntu"
+      host = data.aws_eip.selected.public_ip
+    }
+  }
+}
+```
+### Provisioner code
+```
+#!/bin/bash
+
+# Dependecies
+export GOPATH=/home/ubuntu/go
+sudo apt update
+sudo apt update
+sudo apt install -y golang make
+go get github.com/dexidp/dex
+cd $GOPATH/src/github.com/dexidp/dex
+make
+mv web /home/ubuntu/dex/
+sudo mv bin/dex /usr/bin/
+
+# Systemd Service
+sudo tee /etc/systemd/system/dex.service > /dev/null <<'EOF'
+[Unit]
+Description=Dex service k8s OICD authentication
+[Service]
+ExecStart=/usr/bin/dex serve /home/ubuntu/dex/server-config.yaml
+[Install]
+WantedBy=multi-user.target
+EOF
+sudo systemctl daemon-reload
+sudo systemctl start dex
+```
+
+As you can see the script is very simple it builds dex and creates a systemd service for dex.
+
+### Dex config
+```
+# Use sqlite as the backend
+issuer: https://${domain-name}/dex
+storage:
+  type: sqlite3
+  config:
+    file: ${dex-home-path}/dex.db
+
+# web & TLS config
+web:
+  https: 0.0.0.0:443
+  tlsCert: ${dex-home-path}/certs/cert.pem
+  tlsKey: ${dex-home-path}/certs/key.pem
+
+# html, css and js files
+frontend:
+  dir: ${dex-home-path}/web
+
+# Configuration for telemetry
+telemetry:
+  http: 0.0.0.0:5558
+  
+expiry:
+  signingKeys: "10m"
+  idTokens: "30m"
+
+logger:
+  level: "debug"
+  format: "json" 
+
+oauth2:
+  responseTypes: ["code", "token", "id_token"]
+  skipApprovalScreen: true
+
+
+# Use gitlab as an example for oidc in here we need to use the group's id's for authentication
+connectors:
+  - type: gitlab
+    id: gitlab
+    name: GitLab
+    config:
+      baseURL: https://gitlab.com
+      clientID: ${gitlab-client-id}
+      clientSecret: ${gitlab-secret}
+      redirectURI: https://${domain-name}/dex/callback
+      useLoginAsID: false
+      groups:
+  %{ for group in gitlab-groups ~}
+    - ${group} 
+  %{ endfor ~}
+
+enablePasswordDB: True
+
+
+# Secret id and clientID for the kubelogin client
+- id: kube-login-client
+  name: Kube Login Client
+  secret: qgODwpzNk7NmyxrXINFAHf1R
+  redirectURIs:
+    - http://localhost:8000
+    - http://localhost:18000
+
+```
+
+This is a basic configuration for dex, it supports gitlab groups and you can map them into groups in k8s
+
+### Run the terraform
+You just need to do a `terraform apply --auto-approve` and the you can test if it works using **terratest**, just run `go test` in the tests folder, if the tests don't fail, dex is up and running!
+
+### K8s Config
 Once you have dex (you can use a different oidc provider), you need to update the api server flags to support it:
 - oidc-issuer-url:  This is the url of the dex issuer
 - oidc-username-claim: This is the claim that k8s will use to identify an user
@@ -378,16 +562,22 @@ k3d cluster create oidc \
 --k3s-server-arg "--kube-apiserver-arg=oidc-username-prefix=oidc:"
 
 ```
+Notice the volume where the dex certs are
 
-### Implementation
-1. We will be using the [repo](https://github.com/JorgeReus/k8s-user-auth), so, clone it!
-2. Go to the oidc dir
-3. Follow the instructions of the repo a summary is:
-  - Get your own domain 
-  - Apply the terraform script of the route\_53 zone, this will create a zone with the name you used.
-  - Add the zone namesevers into your domain provider
-  - Generate the self signed certs (k8s needs ssl for the oidc provider)
-  - Apply the terraform scripts for dex
-  - Start your k3d cluster
-  - Install kubelogin
-  - Test it!
+### Kubectl config
+1. Download install kube-login with `kubectl krew install odic-login`
+2. Run :
+```
+kubectl config set-credentials test-oidc --exec-api-version=client.authentication.k8s.io/v1beta1 \
+--exec-api-version=client.authentication.k8s.io/v1beta1 \
+--exec-command=kubectl \
+--exec-arg=oidc-login \
+--exec-arg=get-token \
+--exec-arg=--oidc-issuer-url=<your-dex-url> \
+--exec-arg=--oidc-client-id=<your-dex-client-id> \
+--exec-arg=--oidc-client-secret=<your-client-secret> \
+--exec-arg=--insecure-skip-tls-verify \
+--exec-arg=--oidc-extra-scope="groups email" \
+--exec-arg=--v=0
+```
+3. Test it with `kubectl get secret --user=test-oidc`

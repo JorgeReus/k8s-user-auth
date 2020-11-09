@@ -1,18 +1,18 @@
-# Vanilla Kubernetes User authentication and autorization in depth
+# Vanilla Kubernetes User Authentication and Authorization in Depth
 ## Introduction
-When you're managing vanilla K8s clusters you need to solve some problems like Ingress Balancing, Distributed storage and User Management, in this article we will focus on the later.
+When you're managing vanilla K8s clusters, you need to solve some problems like Ingress Service, Load Balancing, Distributed Storage and User Management, in this article we will focus on those topics later.
 
-User [authentication &  authorization](https://auth0.com/docs/authorization/authentication-and-authorization), in simple terms, consists on verifying who a user is and verifying what they have access to, we will be using [RBAC](https://kubernetes.io/docs/reference/access-authn-authz/rbac/) for authorization in our clusters.
+User [authentication & authorization](https://auth0.com/docs/authorization/authentication-and-authorization), in simple terms, consists on verifying who a user is and verifying what they have access to, we will be using [RBAC](https://kubernetes.io/docs/reference/access-authn-authz/rbac/) for authorization in our clusters.
 
-Kubernetes can use client-certificates, bearer tokens, a proxy or HTTP basic auth, all of these methods will be validated by the API server, the attributes the API server uses for authentication are the following:
+Kubernetes can use client-certificates, bearer tokens, a proxy or HTTP basic auth, all of these methods will be validated by the API server, the attributes of the API server uses for authentication are the following:
 - Username: This is a string that identifies the user, should be unique among all of them, (e.g. admin@example.com, my-user-id, x24diausu=,  etc.)
 - UID: Serves the same purpose as the Username but this attempts to be more consistent than the later, if possible you should be putting the same value on both of them
 - Groups: A set of strings, this indicates a membership in logical manner to a collection of users in K8s, common usage of this is to prefix the groups, for example `system:masters` or `oidc:devs`
-- Extra fiels: A map of strings that contains extra information that could be used by plugins, connectors, etc.
+- Extra fields: A map of strings that contains extra information that could be used by plugins, connectors, etc.
 
-The kubernetes docs recommends using at least two methods:
+The kubernetes docs recommend using at least two methods:
 - Service account tokens for service accounts attached to pods
-- At least another method for user authentication, we will cover 3 methods.
+- At least another method for user authentication. Luckily, we will cover 3 methods.
 
 Enough blahbery, let's cut to the chase.
 
@@ -21,7 +21,7 @@ We will be using the [repo](https://github.com/JorgeReus/k8s-user-auth), so, clo
 
 
 ## Certificate Signing Request
-This method allows a client to ask for and X.509 certificate to be issued by the CA and delivered to him, you can check the code in the **csr** dir in the repo 
+This method allows a client to ask for and X.509 certificate to be issued by the CA and delivered to the user, you can check the code in the **csr** dir in the repo 
 ### Manual process
 For a test environment spin up minikube instance with `minikube start`, this was tested with `minikube version: v1.13.0`
 1. Create your private key
@@ -347,18 +347,18 @@ EOF
 So now kubernetes uses your github token to verify that you belong to an organization.
 
 ## OIDC (OpenId Connect)
-For demo purposes we use `k3d versionk3d version v3.0.1` and `k3s version v1.18.6-k3s1 (default)`  in this example. You can check the code in the **idc** dir.
+For demo purposes, we use `k3d versionk3d version v3.0.1` and `k3s version v1.18.6-k3s1 (default)` in this example. You can check the code in the **idc** dir.
 
-K8s allows an OIDC provider as an Identity provider this is an excellent sequence diagram from the official docs.
+K8s allows an OIDC provider as an Identity provider; This is an excellent sequence diagram from the official docs.
 
 ![OIDC Sequence Diagram](https://d33wubrfki0l68.cloudfront.net/d65bee40cabcf886c89d1015334555540d38f12e/c6a46/images/docs/admin/k8s_oidc_login.svg)
 
-As we can see, the magic happens when we, as an user, login to the IDP to get and `id token` and then the token is used as a bearer token with the kubectl commands.
+As you can see, the magic happens when you, as an user, login to the IDP to get and `id token` and then the token is used as a bearer token with the kubectl commands.
 
-In this example we will spinning up our own [dex](https://github.com/dexidp/dex) instance that has access to Gitlab as an upstream provider.
+In this example, we will be spinning up our own [Dex](https://github.com/dexidp/dex) instance that has access to Gitlab as an upstream provider.
 
-### Why dex?
-Because dex can have multiple upstream providers and showcases a more complex example for OIDC authentication
+### Why Dex?
+Because Dex can have multiple upstream providers and showcases a more complex example for OIDC authentication
 
 
 ### Terraform code

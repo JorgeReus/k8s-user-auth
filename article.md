@@ -581,3 +581,17 @@ kubectl config set-credentials test-oidc --exec-api-version=client.authenticatio
 --exec-arg=--v=0
 ```
 3. Test it with `kubectl get secret --user=test-oidc`
+
+## Conclusion
+As we can saw, k8s has a lot of flexibility regarding user authentication and authorization, you can implement anything as you want as long as k8s reaches it.
+Be sure to test your solution, using tools like terratest, ansible tests and/or unittests!
+So as a summary:
+1. Use Certificates if you don't have and IDP that all of the users share and you don't care about certificate rotation.
+2. User OIDC if you have and IDP that supports it, you have a lot of users using several IDP's and you want to enforce ephemeral tokens.
+3. You have your own authentication and authorization method or you want to have full control over them token lifecycle.
+
+As an extra tip, you can use OIDC in managed environments, like EKS, GKE, etc. using  [kube-oidc-proxy](https://github.com/jetstack/kube-oidc-proxy).
+
+### Keep Rocking 
+
+
